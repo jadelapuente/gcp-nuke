@@ -3,6 +3,8 @@ package resources
 import (
 	"context"
 	"errors"
+	"fmt"
+
 	"github.com/sirupsen/logrus"
 
 	"google.golang.org/api/iterator"
@@ -10,6 +12,7 @@ import (
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
 
+	liberror "github.com/ekristen/libnuke/pkg/errors"
 	"github.com/ekristen/libnuke/pkg/registry"
 	"github.com/ekristen/libnuke/pkg/resource"
 	"github.com/ekristen/libnuke/pkg/types"
@@ -25,6 +28,9 @@ func init() {
 		Scope:    nuke.Project,
 		Resource: &VPCRouter{},
 		Lister:   &VPCRouterLister{},
+		DependsOn: []string{
+			VPCNATResource,
+		},
 	})
 }
 
@@ -75,19 +81,50 @@ func (l *VPCRouterLister) List(ctx context.Context, o interface{}) ([]resource.R
 }
 
 type VPCRouter struct {
-	svc     *compute.RoutersClient
-	Project *string
-	Region  *string
-	Name    *string
+	svc      *compute.RoutersClient
+	removeOp *compute.Operation
+	Project  *string
+	Region   *string
+	Name     *string
 }
 
 func (r *VPCRouter) Remove(ctx context.Context) error {
-	_, err := r.svc.Delete(ctx, &computepb.DeleteRouterRequest{
+	var err error
+	r.removeOp, err = r.svc.Delete(ctx, &computepb.DeleteRouterRequest{
 		Project: *r.Project,
 		Region:  *r.Region,
 		Router:  *r.Name,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	return r.HandleWait(ctx)
+}
+
+func (r *VPCRouter) HandleWait(ctx context.Context) error {
+	if r.removeOp == nil {
+		return nil
+	}
+
+	if err := r.removeOp.Poll(ctx); err != nil {
+		logrus.WithError(err).Trace("router remove op polling encountered error")
+		return err
+	}
+
+	if !r.removeOp.Done() {
+		return liberror.ErrWaitResource("waiting for operation to complete")
+	}
+
+	if r.removeOp.Done() {
+		if r.removeOp.Proto().GetError() != nil {
+			removeErr := fmt.Errorf("delete error on '%s': %s", r.removeOp.Proto().GetTargetLink(), r.removeOp.Proto().GetHttpErrorMessage())
+			logrus.WithError(removeErr).WithField("status_code", r.removeOp.Proto().GetError()).Error("unable to delete router")
+			return removeErr
+		}
+	}
+
+	return nil
 }
 
 func (r *VPCRouter) Properties() types.Properties {
