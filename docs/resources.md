@@ -1,7 +1,7 @@
 # Resources
 
 Resources are the core of the tool, they are what is used to list and remove resources from gcp. The resources are
-broken down into separate files. 
+broken down into separate files.
 
 When creating a resource there's the base resource type, then there's the `Lister` type that returns a list of resources
 that it discovers. Those resources are then filtered by any filtering criteria on the resource itself.
@@ -28,7 +28,7 @@ package resources
 
 import (
     "context"
-    
+
     "github.com/ekristen/libnuke/pkg/resource"
     "github.com/ekristen/libnuke/pkg/types"
 
@@ -80,7 +80,7 @@ func (l *ExampleResourceLister) List(_ context.Context, o interface{}) ([]resour
     opts := o.(*nuke.ListerOpts)
 
     var resources []resource.Resource
-    
+
     // list the resources and add to resources slice
 
     return resources, nil
@@ -94,7 +94,7 @@ package resources
 
 import (
 	"context"
-	
+
 	"github.com/ekristen/libnuke/pkg/resource"
 	"github.com/ekristen/libnuke/pkg/types"
 
@@ -107,7 +107,7 @@ func (l *ExampleResourceLister) List(_ context.Context, o interface{}) ([]resour
 	opts := o.(*nuke.ListerOpts)
 
 	var resources []resource.Resource
-	
+
 	// list the resources and add to resources slice
 
 	return resources, nil
@@ -168,3 +168,8 @@ redirect to a file like so:
 go run tools/create-resource/main.go <service> <resource-type> > resources/<resource-type>.go
 ```
 
+### Example: creating the GKE Cluster resource
+
+1. We find that GKE Cluster is exposed via the `container` GCP service (see the [delete request](https://pkg.go.dev/cloud.google.com/go/container@v1.42.0/apiv1/containerpb#DeleteClusterRequest)) and [list request](https://pkg.go.dev/cloud.google.com/go/container@v1.42.0/apiv1/containerpb#ListClustersRequest) types)
+2. Run the tool with `go run tools/create-resource/main.go container gke-cluster`
+3. Edit the generated file until the `Delete` and `List` methods work as expected
